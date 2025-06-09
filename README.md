@@ -2,6 +2,9 @@
 
 [![n8n](https://img.shields.io/badge/n8n-1.123.16-blue.svg)](https://github.com/n8n-io/n8n/releases/tag/n8n%401.123.16)
 [![Dokku](https://img.shields.io/badge/Dokku-Repo-blue.svg)](https://github.com/dokku/dokku)
+
+For CakePHP specific stuff, see [CAKE_README.md](CAKE_README.md).
+
 # Run n8n on Dokku
 
 > **⚠️ Important: This project currently supports only n8n 1.x.x. Upgrading to n8n 2.x.x is not yet possible here, as version 2.x.x requires a separate Docker runner container. Contributions to add 2.x.x support are welcome!**
