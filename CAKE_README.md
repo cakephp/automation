@@ -46,12 +46,10 @@ We can only prefix the message with the users name, so it is clear who sent the 
 - Files are not synced yet, only text messages.
 - If a user edits or deletes a message in Slack, it is not synced to Discord.
 - Reactions are not synced yet.
-- Messages synced from Discord to Slack re-appear in discord again, since this slack message triggers the other workflow and therefore sends it back again. Aka - bot messages need to be excluded.
 - Links sent from Slack to Discord appear as e.g.
 ```
 https://book.cakephp.org/5/en/intro/conventions.html#database-conventions|https://book.cakephp.org/5/en/intro/conventions.html#database-conventions
 ```
-- Slack messages seem to be HTML encoded, since they contain `slack =&gt; discord` instead of `slack => discord`
 
 
 ## Discord => Slack Chat Sync
