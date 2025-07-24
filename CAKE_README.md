@@ -88,3 +88,22 @@ dokku storage:mount automation /var/lib/dokku/data/storage/automation:/home/node
 With that, the community node is now persisted across rebuilds and restarts.
 
 But I am not sure how to update community nodes yet...
+
+
+## Updating the fork
+
+This repo is a fork of https://github.com/d1ceward-on-dokku/n8n_on_dokku
+
+The base repo gets updated regularly to contain the latest n8n version and bug fixes.
+
+We could just merge the updates from the fork, but this would create a lot of merge commits which gets messy over time.
+
+Therefore, we just rebase the fork on top of the base repo and then push it to our fork.
+
+```bash
+git remote add upstream git@github.com:d1ceward-on-dokku/n8n_on_dokku.git
+git fetch upstream
+git checkout master
+git rebase upstream/master
+git push -f origin master
+```
