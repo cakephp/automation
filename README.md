@@ -1,167 +1,87 @@
-![](.github/images/repo_header.png)
+# What is this?
 
-[![n8n](https://img.shields.io/badge/n8n-1.123.37-blue.svg)](https://github.com/n8n-io/n8n/releases/tag/n8n%401.123.37)
-[![Dokku](https://img.shields.io/badge/Dokku-Repo-blue.svg)](https://github.com/dokku/dokku)
+We had an old slackbot implementation, which synced discord messages to slack and vice versa.
+See https://github.com/cakephp/discord-slack-bridge
 
-For CakePHP specific stuff, see [CAKE_README.md](CAKE_README.md).
+But this broke when Slack [changed their API](https://api.slack.com/changelog/2024-09-legacy-custom-bots-classic-apps-deprecation#legacy-custom-bots)
+and discontinued the RTM API. Therefore, it was time to replace it.
 
-# Run n8n on Dokku
+The current solution is to use [n8n](https://n8n.io/), a powerful workflow automation tool which can do so much more than just bridging Discord and Slack.
 
-> **⚠️ Important: This project currently supports only n8n 1.x.x. Upgrading to n8n 2.x.x is not yet possible here, as version 2.x.x requires a separate Docker runner container. Contributions to add 2.x.x support are welcome!**
 
-## Overview
+## Where is it set up?
 
-This guide explains how to deploy [n8n](https://n8n.io/), an extendable workflow automation tool, on a [Dokku](http://dokku.viewdocs.io/dokku/) host. Dokku is a lightweight PaaS that simplifies deploying and managing applications using Docker.
+It runs inside our [apps.cakephp.org](https://apps.cakephp.org) Server which hosts a bunch of dokku based apps.
 
-## Prerequisites
+The URL is https://automation.cakephp.org - for Backend access please ask a core member or [@lordsimal](https://github.com/LordSimal)
 
-Before proceeding, ensure you have the following:
 
-- A working [Dokku host](http://dokku.viewdocs.io/dokku/getting-started/installation/).
-- The [PostgreSQL plugin](https://github.com/dokku/dokku-postgres) installed on Dokku.
-- (Optional) The [Let's Encrypt plugin](https://github.com/dokku/dokku-letsencrypt) for SSL certificates.
+## How does it work?
 
-## Setup Instructions
+## Slack => Discord Chat Sync
 
-### 1. Create the App
+This uses the n8n built-in Slack trigger to listen for new messages in a specific Slack channel.
 
-Log into your Dokku host and create the `n8n` app:
+Each channel needs to be mapped individually to a Discord channel, since we
+- don't want to sync every channel and
+- some channels may have different names in Slack and Discord
 
-```bash
-dokku apps:create n8n
+### Debugging Slack Messages with manual triggers in n8n
+
+N8N 2.0 now has a better way to debug workflow runs via looking at the "Executions" tab in the n8n UI.
+
+This shows you directly which data gets sent for which trigger so you have a better overview of the data and can easily debug it.
+
+### Problems to be fixed
+
+- If a user edits or deletes a message in Slack, it is not synced to Discord.
+- Reactions are not synced yet.
+- Links sent from Slack to Discord appear as e.g.
+```
+https://book.cakephp.org/5/en/intro/conventions.html#database-conventions|https://book.cakephp.org/5/en/intro/conventions.html#database-conventions
 ```
 
-### 2. Configure the App
 
-#### Install, Create, and Link PostgreSQL Plugin
+## Discord => Slack Chat Sync
 
-1. Install the PostgreSQL plugin:
+This one was a bit more tricky, since Discord doesn't have a built-in trigger for new messages.
 
-    ```bash
-    dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-    ```
+We needed to add a [community node](https://www.npmjs.com/package/n8n-nodes-discord-trigger) which adds a trigger for new messages in Discord channels.
 
-2. Create a PostgreSQL service:
+This new bot also needed access to the [Gateway Intents](https://discord.com/developers/docs/events/gateway#gateway-intents) API, which was not present in the old bot we had till now.
 
-    ```bash
-    dokku postgres:create n8n
-    ```
+Therefore, a new bot was created and was added to the CakePHP Discord server - very creatively named "CakePHP-Slack-Bot"
 
-3. Link the PostgreSQL service to the app:
+With that community node installed and the new bot added to the Discord server, we were now able to add a trigger for new messages in Discord channels.
 
-    ```bash
-    dokku postgres:link n8n n8n
-    ```
+### Problems to be fixed
 
-#### Set the Encryption Key
+- If a user edits or deletes a message in Discord, it is not synced to Slack.
+- Reactions are not synced yet.
 
-Generate and set an encryption key for n8n:
 
-```bash
-dokku config:set n8n N8N_ENCRYPTION_KEY=$(echo `openssl rand -base64 45` | tr -d \=+ | cut -c 1-32)
-```
+## Persisting community nodes in dokku
 
-#### Set the Webhook URL
+At first there was a problem with the community node not being persisted in the Dokku app.
+After a rebuild, the community node was not available anymore.
 
-Set the webhook URL for your n8n instance:
+Fortunately, @d1ceward - who provided the initial Dokku setup - found a solution to this problem.
+https://github.com/d1ceward-on-dokku/n8n_on_dokku/issues/4
 
 ```bash
-dokku config:set n8n WEBHOOK_URL=http://n8n.example.com
+dokku storage:ensure-directory automation --chown false
+chown 1000:1000 /var/lib/dokku/data/storage/automation
+dokku storage:mount automation /var/lib/dokku/data/storage/automation:/home/node/.n8n
 ```
 
-### 3. Configure Persistent Storage
+With that, the community node is now persisted across rebuilds and restarts.
 
-To persist data between restarts (like community nodes, logs, etc...), create a folder on the host machine and mount it to the app container:
+But I am not sure how to update community nodes yet...
 
-```bash
-dokku storage:ensure-directory n8n --chown false
-chown 1000:1000 /var/lib/dokku/data/storage/n8n
-dokku storage:mount n8n /var/lib/dokku/data/storage/n8n:/home/node/.n8n
-```
 
-### 4. Configure the Domain and Ports
+## Updating to newer N8N 2.0 version
 
-Set the domain for your app to enable routing:
+There are 2 things that need to be done:
 
-```bash
-dokku domains:set n8n n8n.example.com
-```
-
-Map the internal port `5678` to the external port `80`:
-
-```bash
-dokku ports:set n8n http:80:5678
-```
-
-### 5. Deploy the App
-
-You can deploy the app to your Dokku server using one of the following methods:
-
-#### Option 1: Deploy Using `dokku git:sync`
-
-If your repository is hosted on a remote Git server with an HTTPS URL, you can deploy the app directly to your Dokku server using `dokku git:sync`. This method also triggers a build process automatically. Run the following command:
-
-```bash
-dokku git:sync --build n8n https://github.com/d1ceward-on-dokku/n8n_on_dokku.git
-```
-
-This will fetch the code from the specified repository, build the app, and deploy it to your Dokku server.
-
-#### Option 2: Clone the Repository and Push Manually
-
-If you prefer to work with the repository locally, you can clone it to your machine and push it to your Dokku server manually:
-
-1. Clone the repository:
-
-    ```bash
-    # Via HTTPS
-    git clone https://github.com/d1ceward-on-dokku/n8n_on_dokku.git
-    ```
-
-2. Add your Dokku server as a Git remote:
-
-    ```bash
-    git remote add dokku dokku@example.com:n8n
-    ```
-
-3. Push the app to your Dokku server:
-
-    ```bash
-    git push dokku master
-    ```
-
-Choose the method that best suits your workflow.
-
-### 6. Enable SSL (Optional)
-
-Secure your app with an SSL certificate from Let's Encrypt:
-
-1. Add the HTTPS port:
-
-    ```bash
-    dokku ports:add n8n https:443:5678
-    ```
-
-2. Install the Let's Encrypt plugin:
-
-    ```bash
-    dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git
-    ```
-
-3. Set the contact email for Let's Encrypt:
-
-    ```bash
-    dokku letsencrypt:set n8n email you@example.com
-    ```
-
-4. Enable Let's Encrypt for the app:
-
-    ```bash
-    dokku letsencrypt:enable n8n
-    ```
-
-## Wrapping Up
-
-Congratulations! Your n8n instance is now up and running. You can access it at [https://n8n.example.com](https://n8n.example.com).
-
-For more information about n8n, visit the [official documentation](https://docs.n8n.io/).
+1. Update the runner on the apps.cakephp.org Server via `dokku git:from-image automation-runners n8nio/runners:2.18.0`
+2. Update the Dockerfile `N8N_VERSION` Arg to use the same version and push the commit to trigger the deploy
